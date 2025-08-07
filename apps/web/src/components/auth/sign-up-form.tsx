@@ -8,7 +8,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import useSignUp from "@/hooks/mutations/use-sign-up";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
 import { useRouter } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
@@ -16,7 +15,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod/v4";
-import useAuth from "../providers/auth-provider/hooks/use-auth";
+import { authClient } from "@kaneo/libs";
 
 export type SignUpFormValues = {
   email: string;
@@ -25,15 +24,15 @@ export type SignUpFormValues = {
 };
 
 const signUpSchema = z.object({
-  email: z.email(),
-  password: z.string().min(8, { message: "Password is too short" }),
-  name: z.string(),
+  email: z.email("Please enter a valid email address"),
+  password: z.string().min(8, { message: "Password must be at least 8 characters" }),
+  name: z.string().min(1, { message: "Name is required" }),
 });
 
 export function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const { setUser } = useAuth();
   const { history } = useRouter();
+
   const form = useForm<SignUpFormValues>({
     resolver: standardSchemaResolver(signUpSchema),
     defaultValues: {
@@ -42,24 +41,29 @@ export function SignUpForm() {
       name: "",
     },
   });
-  const { mutateAsync } = useSignUp();
 
   const onSubmit = async (data: SignUpFormValues) => {
-    try {
-      const user = await mutateAsync({
-        email: data.email,
-        name: data.name,
-        password: data.password,
-      });
-
-      setUser(user);
-
-      setTimeout(() => {
-        history.push("/dashboard");
-      }, 500);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to sign up");
-    }
+    await authClient.signUp.email({
+      email: data.email,
+      name: data.name,
+      password: data.password,
+    }, {
+      onRequest: () => {
+        toast.loading("Creating your account...", { id: "signup" });
+      },
+      onSuccess: () => {
+        toast.dismiss("signup");
+        toast.success("Account created successfully! Welcome aboard!");
+        setTimeout(() => {
+          history.push("/dashboard");
+        }, 500);
+      },
+      onError: (ctx) => {
+        toast.dismiss("signup");
+        const errorMessage = ctx.error.message || "Failed to create account";
+        toast.error(errorMessage);
+      },
+    });
   };
 
   return (
@@ -69,7 +73,7 @@ export function SignUpForm() {
           <FormField
             control={form.control}
             name="name"
-            render={({ field, fieldState }) => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium text-zinc-300 mb-1.5 block">
                   Full Name
@@ -77,11 +81,11 @@ export function SignUpForm() {
                 <FormControl>
                   <Input
                     className="bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50 text-zinc-900 dark:text-zinc-100"
-                    placeholder="Andrej Acevski"
+                    placeholder="John Doe"
                     {...field}
                   />
                 </FormControl>
-                <FormMessage>{fieldState.error?.message}</FormMessage>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -89,7 +93,7 @@ export function SignUpForm() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field, fieldState }) => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium text-zinc-300 mb-1.5 block">
                   Email
@@ -101,7 +105,7 @@ export function SignUpForm() {
                     {...field}
                   />
                 </FormControl>
-                <FormMessage>{fieldState.error?.message}</FormMessage>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -109,7 +113,7 @@ export function SignUpForm() {
           <FormField
             control={form.control}
             name="password"
-            render={({ field, fieldState }) => (
+            render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium text-zinc-300 mb-1.5 block">
                   Password
@@ -131,7 +135,7 @@ export function SignUpForm() {
                     </button>
                   </div>
                 </FormControl>
-                <FormMessage>{fieldState.error?.message}</FormMessage>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -139,9 +143,10 @@ export function SignUpForm() {
 
         <Button
           type="submit"
+          disabled={form.formState.isSubmitting}
           className="w-full bg-indigo-600 text-white hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400 mt-6"
         >
-          Sign Up
+          {form.formState.isSubmitting ? "Creating Account..." : "Sign Up"}
         </Button>
       </form>
     </Form>

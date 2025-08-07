@@ -1,8 +1,10 @@
 import { createId } from "@paralleldrive/cuid2";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { openAPI, organization } from "better-auth/plugins";
+import { anonymous, openAPI, organization } from "better-auth/plugins";
 import db from "../database";
+import { publishEvent } from "../events";
+import { generateDemoName } from "./generate-demo-name";
 
 export const auth = betterAuth({
   databaseHooks: {
@@ -14,7 +16,20 @@ export const auth = betterAuth({
   },
   database: drizzleAdapter(db, { provider: "pg" }),
   plugins: [
+    anonymous({
+      generateName: async () => generateDemoName(),
+    }),
     organization({
+      organizationCreation: {
+        disabled: false,
+        afterCreate: async ({ organization, user }) => {
+          publishEvent("workspace.created", {
+            workspaceId: organization.id,
+            workspaceName: organization.name,
+            ownerEmail: user.name,
+          });
+        },
+      },
       teams: {
         enabled: false,
       },

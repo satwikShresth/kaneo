@@ -1,5 +1,4 @@
 import { serve } from "@hono/node-server";
-import { Cron } from "croner";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
@@ -9,7 +8,6 @@ import config from "./config";
 import db from "./database";
 import githubIntegration from "./github-integration";
 import label from "./label";
-import { auth } from "./middlewares/auth";
 import notification from "./notification";
 import project from "./project";
 import { getPublicProject } from "./project/controllers/get-public-project";
@@ -18,14 +16,14 @@ import task from "./task";
 import timeEntry from "./time-entry";
 import user from "./user";
 import { validateSessionToken } from "./user/utils/validate-session-token";
-import getSettings from "./utils/get-settings";
-import purgeDemoData from "./utils/purge-demo-data";
-import setDemoUser from "./utils/set-demo-user";
-import workspace from "./workspace";
-import workspaceUser from "./workspace-user";
+import { auth } from "./utils/auth";
 
-const app = new Hono<{ Variables: { userEmail: string } }>();
-const { isDemoMode } = getSettings();
+const app = new Hono<{
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+}>();
 
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
@@ -65,36 +63,22 @@ const publicProjectRoute = app.get("/public-project/:id", async (c) => {
 
 const userRoute = app.route("/user", user);
 
-if (!isDemoMode) {
-  app.use("*", auth);
-}
-
-if (isDemoMode) {
-  new Cron("0 * * * *", async () => {
-    await purgeDemoData();
-  });
-}
-
 app.use("*", async (c, next) => {
-  if (isDemoMode) {
-    const session = getCookie(c, "session");
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
-    if (!session) {
-      await setDemoUser(c);
-    }
-
-    const { user, session: validatedSession } = await validateSessionToken(
-      session ?? "",
-    );
-
-    if (!user || !validatedSession) {
-      await setDemoUser(c);
-    }
-
-    c.set("userEmail", user?.email ?? "");
+  if (!session) {
+    c.set("user", null);
+    c.set("session", null);
+    return next();
   }
 
-  await next();
+  c.set("user", session.user);
+  c.set("session", session.session);
+  return next();
+});
+
+app.on(["POST", "GET"], "/api/auth/*", (c) => {
+  return auth.handler(c.req.raw);
 });
 
 const meRoute = app.get("/me", async (c) => {
@@ -113,8 +97,6 @@ const meRoute = app.get("/me", async (c) => {
   return c.json({ user });
 });
 
-const workspaceRoute = app.route("/workspace", workspace);
-const workspaceUserRoute = app.route("/workspace-user", workspaceUser);
 const projectRoute = app.route("/project", project);
 const taskRoute = app.route("/task", task);
 const activityRoute = app.route("/activity", activity);
@@ -144,8 +126,6 @@ serve(
 
 export type AppType =
   | typeof userRoute
-  | typeof workspaceRoute
-  | typeof workspaceUserRoute
   | typeof projectRoute
   | typeof taskRoute
   | typeof activityRoute
