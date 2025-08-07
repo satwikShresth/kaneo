@@ -32,11 +32,7 @@ export const sessionTableRelations = relations(sessionTable, ({ one }) => ({
 
 export const workspaceTableRelations = relations(
   workspaceTable,
-  ({ one, many }) => ({
-    owner: one(userTable, {
-      fields: [workspaceTable.ownerEmail],
-      references: [userTable.email],
-    }),
+  ({ many }) => ({
     members: many(workspaceUserTable),
     projects: many(projectTable),
   }),
