@@ -25,7 +25,6 @@ import { Textarea } from "@/components/ui/textarea";
 import useCreateLabel from "@/hooks/mutations/label/use-create-label";
 import useCreateTask from "@/hooks/mutations/task/use-create-task";
 import useUpdateTask from "@/hooks/mutations/task/use-update-task";
-import useGetActiveWorkspaceUsers from "@/hooks/queries/workspace-users/use-active-workspace-users";
 import { cn } from "@/lib/cn";
 import useProjectStore from "@/store/project";
 import useWorkspaceStore from "@/store/workspace";
@@ -43,6 +42,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { authClient } from "@kaneo/libs";
+import { useQuery } from "@tanstack/react-query";
 
 interface CreateTaskModalProps {
   open: boolean;
@@ -85,9 +86,19 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
   const { workspace } = useWorkspaceStore();
   const { mutate: updateTask } = useUpdateTask();
   const { mutateAsync: createLabel } = useCreateLabel();
-  const { data: users } = useGetActiveWorkspaceUsers({
-    workspaceId: workspace?.id ?? "",
+
+  const { data: orgData } = useQuery({
+    queryKey: ["organization", workspace?.id],
+    queryFn: async () => await authClient.organization.getFullOrganization({
+      query: {
+        organizationId: workspace?.id ?? ""
+      }
+    }),
+    enabled: !!workspace?.id && open,
   });
+  const users = orgData?.data?.members ?? [];
+
+
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -221,7 +232,7 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
   ];
 
   const selectedPriority = priorityOptions.find((p) => p.value === priority);
-  const selectedUser = users?.find((u) => u.userEmail === assigneeEmail);
+  const { user: selectedUser } = users?.find((u) => u.user.email === assigneeEmail)!;
 
   const filteredLabels = labels.filter((label: Label) =>
     label.name.toLowerCase().includes(searchValue.toLowerCase()),
@@ -356,7 +367,7 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
                 <div className="w-1.5 h-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 dark:from-amber-400 dark:to-yellow-400 rounded-full shadow-sm" />
                 {status
                   ? status.charAt(0).toUpperCase() +
-                    status.slice(1).replace("-", " ")
+                  status.slice(1).replace("-", " ")
                   : "In Progress"}
               </div>
 
@@ -413,10 +424,10 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
                     {selectedUser ? (
                       <>
                         <div className="w-4 h-4 bg-zinc-400 dark:bg-zinc-600 rounded-full flex items-center justify-center text-[10px] text-white font-bold">
-                          {selectedUser.userName?.charAt(0).toUpperCase() ||
+                          {selectedUser.name?.charAt(0).toUpperCase() ||
                             "?"}
                         </div>
-                        <span>{selectedUser.userName}</span>
+                        <span>{selectedUser.name}</span>
                       </>
                     ) : (
                       <>
@@ -436,17 +447,17 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
                       <UserIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-500" />
                       Unassigned
                     </button>
-                    {users?.map((user) => (
+                    {users?.map(({ user }) => (
                       <button
-                        key={user.userEmail}
+                        key={user.email}
                         type="button"
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-900 dark:text-zinc-300 transition-all duration-200 hover:scale-[1.02]"
-                        onClick={() => setAssigneeEmail(user.userEmail || "")}
+                        onClick={() => setAssigneeEmail(user.email || "")}
                       >
                         <div className="w-4 h-4 bg-zinc-400 dark:bg-zinc-600 rounded-full flex items-center justify-center text-[10px] text-white font-bold">
-                          {user.userName?.charAt(0).toUpperCase() || "?"}
+                          {user.email?.charAt(0).toUpperCase() || "?"}
                         </div>
-                        {user.userName}
+                        {user.email}
                       </button>
                     ))}
                   </div>
@@ -603,7 +614,7 @@ function CreateTaskModal({ open, onClose, status }: CreateTaskModalProps) {
                                   className={cn(
                                     "flex items-center px-3 py-2 text-sm text-left text-zinc-900 dark:text-zinc-200 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800",
                                     selectedColor === color.value &&
-                                      "bg-zinc-100 dark:bg-zinc-800",
+                                    "bg-zinc-100 dark:bg-zinc-800",
                                   )}
                                   onClick={() => {
                                     setSelectedColor(color.value);

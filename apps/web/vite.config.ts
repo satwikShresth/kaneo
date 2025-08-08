@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "/",
   plugins: [
-    TanStackRouterVite(),
+    TanStackRouterVite({ autoCodeSplitting: true }),
     react({
       babel: {
         plugins: [["babel-plugin-react-compiler"]],

@@ -17,7 +17,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { shortcuts } from "@/constants/shortcuts";
-import useGetWorkspaces from "@/hooks/queries/workspace/use-get-workspaces";
 import {
   getModifierKeyText,
   useRegisterShortcuts,
@@ -26,12 +25,13 @@ import { useUserPreferencesStore } from "@/store/user-preferences";
 import useWorkspaceStore from "@/store/workspace";
 import type { Workspace } from "@/types/workspace";
 import CreateWorkspaceModal from "./shared/modals/create-workspace-modal";
+import { authClient } from "@kaneo/libs";
 
 export function WorkspaceSwitcher() {
   const { isMobile } = useSidebar();
   const { workspace, setWorkspace } = useWorkspaceStore();
   const { setActiveWorkspaceId } = useUserPreferencesStore();
-  const { data: workspaces } = useGetWorkspaces();
+  const { data: workspaces } = authClient.useListOrganizations();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =

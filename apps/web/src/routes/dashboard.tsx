@@ -1,8 +1,8 @@
 import PageTitle from "@/components/page-title";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import useGetWorkspaces from "@/hooks/queries/workspace/use-get-workspaces";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import useWorkspaceStore from "@/store/workspace";
+import { authClient } from "@kaneo/libs";
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 
@@ -19,7 +19,8 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardIndexRouteComponent() {
   const { workspace, setWorkspace } = useWorkspaceStore();
-  const { data: workspaces } = useGetWorkspaces();
+  const { data: workspaces } = authClient.useListOrganizations();
+  console.log(workspaces);
   const { activeWorkspaceId, setActiveWorkspaceId } = useUserPreferencesStore();
 
   useEffect(() => {

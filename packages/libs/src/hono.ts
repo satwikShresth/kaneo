@@ -6,8 +6,8 @@ import { hc } from "hono/client";
 export const client = hc<AppType>(
   import.meta.env.VITE_API_URL || "http://localhost:1337",
   {
-    fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-      return fetch(input, {
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      return await fetch(input, {
         ...init,
         headers: {
           ...init?.headers,

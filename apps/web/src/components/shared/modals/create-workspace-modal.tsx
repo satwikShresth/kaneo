@@ -14,8 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import useCreateWorkspace from "@/hooks/queries/workspace/use-create-workspace";
 import { useUserPreferencesStore } from "@/store/user-preferences";
+import { authClient } from "@kaneo/libs";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -29,11 +29,11 @@ interface CreateWorkspaceModalProps {
 function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { setActiveWorkspaceId } = useUserPreferencesStore();
-  const { mutateAsync } = useCreateWorkspace();
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -43,7 +43,18 @@ function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
     }
   }, [open]);
 
+  const createSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
   const handleClose = () => {
+    if (isLoading) return;
     setName("");
     setDescription("");
     onClose();
@@ -51,26 +62,36 @@ function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isLoading) return;
+
+    setIsLoading(true);
 
     try {
-      const createdWorkspace = await mutateAsync({ name, description });
-      toast.success("Workspace created successfully");
-      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      const { data: createdWorkspace } = await authClient.organization.create({
+        name: name.trim(),
+        description: description.trim(),
+        slug: createSlug(name),
+      });
 
-      setActiveWorkspaceId(createdWorkspace.id);
+      toast.success("Workspace created successfully");
+
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      setActiveWorkspaceId(createdWorkspace?.id!);
+
       navigate({
         to: "/dashboard/workspace/$workspaceId",
         params: {
-          workspaceId: createdWorkspace.id,
+          workspaceId: createdWorkspace?.id!,
         },
       });
 
       handleClose();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to create workspace",
+        error instanceof Error ? error.message : "Failed to create workspace"
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -103,6 +124,7 @@ function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Workspace name"
+              disabled={isLoading}
               className="!text-2xl font-semibold !border-0 px-0 py-3 !shadow-none focus-visible:!ring-0 !bg-transparent text-zinc-900 dark:text-white placeholder:text-zinc-500 dark:placeholder:text-zinc-400 tracking-tight focus:!outline-none focus-visible:!outline-none"
               required
             />
@@ -111,6 +133,7 @@ function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add description..."
+              disabled={isLoading}
               className="!border-0 px-0 py-2 !shadow-none focus-visible:!ring-0 !bg-transparent text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-500 dark:placeholder:text-zinc-400 focus:!outline-none focus-visible:!outline-none"
             />
           </div>
@@ -121,17 +144,18 @@ function CreateWorkspaceModal({ open, onClose }: CreateWorkspaceModalProps) {
               onClick={handleClose}
               variant="outline"
               size="sm"
+              disabled={isLoading}
               className="border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={!name.trim()}
+              disabled={!name.trim() || isLoading}
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50"
             >
-              Create Workspace
+              {isLoading ? "Creating..." : "Create Workspace"}
             </Button>
           </DialogFooter>
         </form>

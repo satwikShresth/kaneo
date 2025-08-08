@@ -1,4 +1,3 @@
-import useGetMe from "@/hooks/queries/use-get-me";
 import type { LoggedInUser } from "@/types/user";
 import {
   type Dispatch,
@@ -11,6 +10,7 @@ import {
 } from "react";
 import { ErrorDisplay } from "../../ui/error-display";
 import { LoadingSkeleton } from "../../ui/loading-skeleton";
+import { authClient } from "@kaneo/libs";
 
 export const AuthContext = createContext<{
   user: LoggedInUser | null | undefined;
@@ -22,7 +22,7 @@ export const AuthContext = createContext<{
 
 function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<LoggedInUser | undefined | null>(undefined);
-  const { data, isFetching, error } = useGetMe();
+  const { data, isPending, error } = authClient.useSession();
 
   useEffect(() => {
     if (data?.user === null) {
@@ -50,7 +50,7 @@ function AuthProvider({ children }: PropsWithChildren) {
     );
   }
 
-  if (isFetching || user === undefined) {
+  if (isPending || user === undefined) {
     return <LoadingSkeleton />;
   }
 
